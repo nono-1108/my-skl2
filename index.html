@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplikasi SKL Mahasiswa</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="style.css" rel="stylesheet">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+    <div id="app" class="container mt-4">
+        <h2 class="mb-4 text-center">SISTEM INPUT DATA SKL (SURAT KETERANGAN LULUS)</h2>
+        
+        <div class="row justify-content-center">
+            
+    <div class="col-12 d-flex flex-column mb-5">
+        
+        <div class="bg-primary text-white p-3 rounded mb-3 shadow-sm">
+            <h5 class="m-0">Form Input Data SKL</h5>
+        </div>
+            
+        <div class="card form-wrapper flex-grow-1">
+            <div class="card-body"> 
+                <form @submit.prevent="saveData">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Jurusan</label>
+                            <select v-model="form.jurusan" class="form-select" required @change="resetProdi">
+                                <option value="">Pilih Jurusan</option>
+                                <option value="Ilmu Ekonomi dan Studi Pembangunan">Ilmu Ekonomi dan Studi Pembangunan</option>
+                                <option value="Manajemen">Manajemen</option>
+                                <option value="Akuntansi">Akuntansi</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Program Studi</label>
+                            <select v-model="form.program_studi" class="form-select" required>
+                                <option value="">Pilih Prodi</option>
+                                <option v-if="form.jurusan === 'Ilmu Ekonomi dan Studi Pembangunan'" value="S1 Ekonomi Pembangunan">S1 Ekonomi Pembangunan</option>
+                                <option v-if="form.jurusan === 'Ilmu Ekonomi dan Studi Pembangunan'" value="S1 Ekonomi Syariah">S1 Ekonomi Syariah</option>   
+                                <option v-if="form.jurusan === 'Manajemen'" value="S1 Manajemen">S1 Manajemen</option>
+                                <option v-if="form.jurusan === 'Akuntansi'" value="S1 Akuntansi">S1 Akuntansi</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Nama Mahasiswa</label>
+                            <input type="text" v-model="form.nama_mahasiswa" class="form-control" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">NIM</label>
+                            <input type="text" v-model="form.nim" class="form-control" required>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Tempat Lahir</label>
+                            <input type="text" v-model="form.tempat_lahir" class="form-control">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Tanggal Lahir</label>
+                            <input type="date" v-model="form.tanggal_lahir" class="form-control">
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Nomor Surat</label>
+                            <input type="text" v-model="form.nomor_surat" class="form-control" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Tanggal Surat</label>
+                            <input type="date" v-model="form.tanggal_pembuatan_surat" class="form-control" required>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">NIN (No Ijasah)</label>
+                            <input type="text" v-model="form.nin" class="form-control" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Nomor Transkrip</label>
+                            <input type="text" v-model="form.nomor_transkrip" class="form-control">
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">IPK</label>
+                            <input type="number" step="0.01" min="0" max="4" v-model="form.ipk" class="form-control" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Predikat</label>
+                            <input type="text" v-model="form.predikat" class="form-control">
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Tanggal Lulus</label>
+                            <input type="date" v-model="form.tanggal_lulus" class="form-control">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Judul Tugas Akhir</label>
+                        <textarea v-model="form.judul_tugas_akhir" class="form-control" rows="2"></textarea>
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                        <button type="button" class="btn btn-secondary" @click="clearForm">CLEAR</button>
+                        <button type="button" class="btn btn-danger" @click="deleteData" v-if="form.id">HAPUS</button>
+                        <button type="submit" class="btn btn-success">SIMPAN</button>
+                        <button type="button" class="btn btn-sm btn-danger ms-md-3" onclick="localStorage.removeItem('skl_logged_in'); window.location.href='login.html';">Logout</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 d-flex flex-column">
+        
+        <div class="bg-secondary text-white p-3 rounded mb-3 shadow-sm d-flex justify-content-between align-items-center">
+            <h5 class="m-0 font-weight-bold">Daftar Data SKL</h5>
+
+            <div class="d-flex gap-2 w-90 ms-3 justify-content-end">
+                
+                <select v-model="filterProdi" class="form-select form-select-sm w-auto" style="background-color: rgba(255,255,255,0.8); color: black;">
+                    <option value="">Seluruh Program Studi</option>
+                    <option value="S1 Ekonomi Pembangunan">S1 Ekonomi Pembangunan</option>
+                    <option value="S1 Ekonomi Syariah">S1 Ekonomi Syariah</option>
+                    <option value="S1 Manajemen">S1 Manajemen</option>
+                    <option value="S1 Akuntansi">S1 Akuntansi</option>
+                </select>
+
+                <input type="text" v-model="searchQuery" class="form-control form-control-sm w-100" placeholder="Cari NIM / Nama..." style="background-color: rgba(255,255,255,0.8); color: black;">
+                <input type="file" ref="fileInput" @change="processFile" accept=".xlsx, .xls" style="display: none;">
+                <button @click="triggerFileInput" class="btn btn-sm btn-info text-white text-nowrap fw-bold">📤 IMPORT</button>
+                <button @click="exportExcel" class="btn btn-sm btn-success text-nowrap fw-bold">📥 EXPORT</button>
+                
+            </div>
+        </div>
+                        
+        <div class="card table-wrapper flex-grow-1">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table text-white mb-0">
+                        <thead>
+                            <tr>
+                                <th>No</th>
+                                <th>NIM</th>
+                                <th>Nama</th>
+                                <th>Prodi</th>
+                                <th>No Surat</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="(item, index) in filteredData" :key="item.id">
+                                <td>{{ index + 1 }}</td>
+                                <td>{{ item.nim }}</td>
+                                <td>{{ item.nama_mahasiswa }}</td>
+                                <td>{{ item.program_studi }}</td>
+                                <td>{{ item.nomor_surat }}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-warning me-1 mb-1" @click="editData(item)">Edit</button>
+                                    <button class="btn btn-sm btn-info mb-1" @click="cetakPDF(item.id)">Cetak</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+        
+    <footer class="text-center text-lg-start mt-4 text-white">
+        <div class="text-center p-3" style="background-color: rgba(0, 0, 0, 0.2); border-top: 1px solid rgba(255, 255, 255, 0.1);">
+            &copy; 2026 My-SKL. copyright by nono.
+        </div>
+    </footer>   
+
+    <script src="app.js"></script>
+</body>
+</html>
