@@ -5,7 +5,7 @@ axios.defaults.headers.common['ngrok-skip-browser-warning'] = '69420';
 createApp({
     data() {
         return {
-            apiURL: 'https://variety-leeds-milan-mini.trycloudflare.com/api/skl'
+            apiURL: 'https://variety-leeds-milan-mini.trycloudflare.com/api/skl',
             searchQuery: '',
             filterProdi: '', 
             dataList: [],
