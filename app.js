@@ -5,7 +5,7 @@ axios.defaults.headers.common['ngrok-skip-browser-warning'] = '69420';
 createApp({
     data() {
         return {
-            apiURL: 'http://10.139.10.57:5000/api/skl',
+            apiURL: 'http://192.168.100.100:5000/api/skl',
             searchQuery: '',
             filterProdi: '', 
             dataList: [],
