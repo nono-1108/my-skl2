@@ -2,6 +2,55 @@ const supabase = require('../config/db');
 const puppeteer = require('puppeteer');
 const fs = require('fs');     
 const path = require('path'); 
+const jwt = require('../utils/jwt');
+
+// --- CACHE LOGO SAAT STARTUP ---
+let logoBase64 = '';
+let fibaaBase64 = '';
+let bluBase64 = '';
+
+try {
+    const logoPath = path.resolve(__dirname, '../assets/logo-unej.png');
+    if (fs.existsSync(logoPath)) {
+        const logoData = fs.readFileSync(logoPath);
+        logoBase64 = `data:image/png;base64,${logoData.toString('base64')}`;
+    }
+    
+    const fibaaPath = path.resolve(__dirname, '../assets/fibaa.png');
+    if (fs.existsSync(fibaaPath)) {
+        const fibaaData = fs.readFileSync(fibaaPath);
+        fibaaBase64 = `data:image/png;base64,${fibaaData.toString('base64')}`;
+    }
+    
+    const bluPath = path.resolve(__dirname, '../assets/BLU.png');
+    if (fs.existsSync(bluPath)) {
+        const bluData = fs.readFileSync(bluPath);
+        bluBase64 = `data:image/png;base64,${bluData.toString('base64')}`;
+    }
+} catch (err) {
+    console.error("Gagal memuat logo:", err);
+}
+// -------------------------------
+
+const loginAdmin = async (req, res) => {
+    const { username, password } = req.body;
+    
+    if (username === 'admin' && password === 'admin123') {
+        const secret = process.env.JWT_SECRET || 'rahasia_negara_123';
+        const token = jwt.sign({ username: 'admin', role: 'admin' }, secret, { expiresIn: '1d' });
+        
+        return res.status(200).json({
+            status: 'success',
+            message: 'Login berhasil',
+            token: token
+        });
+    } else {
+        return res.status(401).json({
+            status: 'error',
+            message: 'Username atau password salah'
+        });
+    }
+};
 
 const getAllSkl = async (req, res) => {
     try {
@@ -19,39 +68,71 @@ const getAllSkl = async (req, res) => {
 
 const createSkl = async (req, res) => {
     try {
-        // --- 1. PENJAGA DATA GANDA (TAMBAHAN BARU) ---
-        // Kita cek dulu apakah NIM ini sudah ada di tabel 'skl_mahasiswa'
-        const { data: cekData, error: errorCek } = await supabase
-            .from('skl_mahasiswa') 
-            .select('nim')
-            .eq('nim', req.body.nim);
+        const payload = req.body;
+        const isBulk = Array.isArray(payload);
 
-        if (errorCek) throw errorCek; // Jika gagal ngecek, lempar ke catch
+        if (isBulk) {
+            // BULK INSERT
+            // Ambil semua nim dari payload
+            const nims = payload.map(item => item.nim).filter(n => n);
+            
+            // Cek NIM yang sudah ada
+            const { data: existingData, error: errCheck } = await supabase
+                .from('skl_mahasiswa')
+                .select('nim')
+                .in('nim', nims);
+                
+            if (errCheck) throw errCheck;
+            
+            const existingNims = existingData.map(d => d.nim);
+            // Filter data yang belum ada
+            const newData = payload.filter(item => !existingNims.includes(item.nim));
+            
+            if (newData.length === 0) {
+                 return res.status(400).json({ status: 'error', message: 'Semua data dalam Excel sudah terdaftar di sistem.' });
+            }
+            
+            const { data, error } = await supabase
+                .from('skl_mahasiswa')
+                .insert(newData)
+                .select();
+                
+            if (error) throw error;
+            
+            return res.status(201).json({
+                status: 'success',
+                message: `${newData.length} data berhasil disimpan, ${payload.length - newData.length} dilewati (duplikat).`,
+                data: data
+            });
+        } else {
+            // SINGLE INSERT
+            const { data: cekData, error: errorCek } = await supabase
+                .from('skl_mahasiswa') 
+                .select('nim')
+                .eq('nim', payload.nim);
 
-        // Jika array cekData ada isinya (NIM ketemu), tolak proses simpan!
-        if (cekData && cekData.length > 0) {
-            return res.status(400).json({
-                status: 'error',
-                message: `Peringatan: Data dengan NIM ${req.body.nim} sudah terdaftar di sistem!`
+            if (errorCek) throw errorCek;
+
+            if (cekData && cekData.length > 0) {
+                return res.status(400).json({
+                    status: 'error',
+                    message: `Peringatan: Data dengan NIM ${payload.nim} sudah terdaftar di sistem!`
+                });
+            }
+
+            const { data, error } = await supabase
+                .from('skl_mahasiswa')
+                .insert([payload])
+                .select();
+
+            if (error) throw error;
+
+            return res.status(201).json({
+                status: 'success',
+                message: 'Data berhasil disimpan',
+                data: data
             });
         }
-        // ---------------------------------------------
-
-        // --- 2. PROSES SIMPAN (KODE ASLI ANDA) ---
-        const { data, error } = await supabase
-            .from('skl_mahasiswa')
-            .insert([req.body])
-            .select();
-
-        if (error) throw error;
-
-        res.status(201).json({
-            status: 'success',
-            message: 'Data berhasil disimpan',
-            data: data
-        });
-        // -----------------------------------------
-
     } catch (error) {
         res.status(500).json({ status: 'error', message: error.message });
     }
@@ -86,33 +167,6 @@ const cetakSkl = async (req, res) => {
                 kata.charAt(0).toUpperCase() + kata.substring(1)
             ).join(' ');
         };
-
-        let logoBase64 = '';
-        let fibaaBase64 = '';
-        let bluBase64 = '';
-        
-        try {
-            
-            const logoPath = path.resolve(__dirname, '../assets/logo-unej.png');
-            if (fs.existsSync(logoPath)) {
-                const logoData = fs.readFileSync(logoPath);
-                logoBase64 = `data:image/png;base64,${logoData.toString('base64')}`;
-            }
-            
-            const fibaaPath = path.resolve(__dirname, '../assets/fibaa.png');
-            if (fs.existsSync(fibaaPath)) {
-                const fibaaData = fs.readFileSync(fibaaPath);
-                fibaaBase64 = `data:image/png;base64,${fibaaData.toString('base64')}`;
-            }
-            
-            const bluPath = path.resolve(__dirname, '../assets/BLU.png');
-            if (fs.existsSync(bluPath)) {
-                const bluData = fs.readFileSync(bluPath);
-                bluBase64 = `data:image/png;base64,${bluData.toString('base64')}`;
-            }
-        } catch (err) {
-            console.error("Gagal memuat logo:", err);
-        }
        
         const htmlContent = `
         <!DOCTYPE html>
@@ -332,4 +386,4 @@ const updateSkl = async (req, res) => {
     }
 };
 
-module.exports = { getAllSkl, createSkl, cetakSkl, deleteSkl, updateSkl };
+module.exports = { getAllSkl, createSkl, cetakSkl, deleteSkl, updateSkl, loginAdmin };

@@ -1,12 +1,17 @@
 const express = require('express');
 const router = express.Router();
+const authMiddleware = require('../middleware/authMiddleware');
 
-const { getAllSkl, createSkl, cetakSkl, deleteSkl, updateSkl } = require('../controllers/sklController');
+const { getAllSkl, createSkl, cetakSkl, deleteSkl, updateSkl, loginAdmin } = require('../controllers/sklController');
 
+// Rute Publik
+router.post('/login', loginAdmin);
 router.get('/', getAllSkl);
-router.post('/', createSkl); 
 router.get('/cetak/:id', cetakSkl);
-router.delete('/:id', deleteSkl);
-router.put('/:id', updateSkl);
+
+// Rute Terlindungi (Membutuhkan Token)
+router.post('/', authMiddleware, createSkl); 
+router.delete('/:id', authMiddleware, deleteSkl);
+router.put('/:id', authMiddleware, updateSkl);
 
 module.exports = router;

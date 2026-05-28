@@ -62,21 +62,27 @@
             },
             methods: {
                 async doLogin() {
-                    if (this.username === 'admin' && this.password === 'admin123') {
+                    try {
+                        const response = await axios.post('/api/skl/login', {
+                            username: this.username,
+                            password: this.password
+                        });
                         
-                        localStorage.setItem('skl_logged_in', 'true');
-                        
-                        window.location.href = 'index.html'; 
-                        
-                    } else {
-                        alert('Username atau password salah!');
+                        if (response.data.status === 'success') {
+                            // Simpan Token JWT
+                            localStorage.setItem('skl_jwt_token', response.data.token);
+                            window.location.href = '/index.html'; 
+                        }
+                    } catch (error) {
+                        const message = error.response?.data?.message || 'Login gagal, server error!';
+                        alert(message);
                         this.password = ''; 
                     }
                 }
             },
             mounted() {
-                if (localStorage.getItem('skl_logged_in') === 'true') {
-                    window.location.href = 'index.html';
+                if (localStorage.getItem('skl_jwt_token')) {
+                    window.location.href = '/index.html';
                 }
             }
         }).mount('#loginApp');

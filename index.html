@@ -106,7 +106,7 @@
                         <button type="button" class="btn btn-secondary" @click="clearForm">CLEAR</button>
                         <button type="button" class="btn btn-danger" @click="deleteData" v-if="form.id">HAPUS</button>
                         <button type="submit" class="btn btn-success">SIMPAN</button>
-                        <button type="button" class="btn btn-sm btn-danger ms-md-3" onclick="localStorage.removeItem('skl_logged_in'); window.location.href='login.html';">Logout</button>
+                        <button type="button" class="btn btn-sm btn-danger ms-md-3" onclick="localStorage.removeItem('skl_jwt_token'); window.location.href='/login.html';">Logout</button>
                     </div>
                 </form>
             </div>

@@ -2,10 +2,25 @@ const { createApp } = Vue;
 
 axios.defaults.headers.common['ngrok-skip-browser-warning'] = '69420';
 
+// Inject JWT Token
+axios.interceptors.request.use(config => {
+    const token = localStorage.getItem('skl_jwt_token');
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+});
+
+// Helper untuk Timezone Lokal
+const getLocalDate = () => {
+    const tzoffset = (new Date()).getTimezoneOffset() * 60000;
+    return (new Date(Date.now() - tzoffset)).toISOString().slice(0, 10);
+};
+
 createApp({
     data() {
         return {
-            apiURL: 'https://variety-leeds-milan-mini.trycloudflare.com/api/skl',
+            apiURL: '/api/skl',
             searchQuery: '',
             filterProdi: '', 
             dataList: [],
@@ -24,7 +39,7 @@ createApp({
                 nomor_transkrip: '',
                 ipk: '',
                 predikat: '',
-                tanggal_pembuatan_surat: new Date().toISOString().slice(0, 10)
+                tanggal_pembuatan_surat: getLocalDate()
             }
         }
     },
@@ -108,7 +123,7 @@ createApp({
                 id: null,
                 jurusan: '',
                 program_studi: '',
-                tanggal_pembuatan_surat: new Date().toISOString().slice(0, 10)
+                tanggal_pembuatan_surat: getLocalDate()
             };
         },
         
@@ -176,37 +191,35 @@ createApp({
                     }
 
                     let successCount = 0;
-                    let failCount = 0;
+                    let skipCount = 0;
+                    
+                    const payloadArray = excelData.map(row => ({
+                        nim: String(row["NIM"] || ''),
+                        nama_mahasiswa: String(row["Nama Mahasiswa"] || ''),
+                        jurusan: String(row["Jurusan"] || ''),
+                        program_studi: String(row["Program Studi"] || ''),
+                        tempat_lahir: String(row["Tempat Lahir"] || ''),
+                        tanggal_lahir: row["Tanggal Lahir"] || null, 
+                        nomor_surat: String(row["Nomor Surat SKL"] || ''),
+                        tanggal_pembuatan_surat: row["Tanggal Surat"] || getLocalDate(),
+                        judul_tugas_akhir: String(row["Judul Tugas Akhir"] || ''),
+                        tanggal_lulus: row["Tanggal Lulus"] || null,
+                        nin: String(row["NIN (No Ijasah)"] || ''),
+                        nomor_transkrip: String(row["Nomor Transkrip"] || ''),
+                        ipk: row["IPK"] ? parseFloat(row["IPK"]) : 0, 
+                        predikat: String(row["Predikat"] || '')
+                    }));
 
-                    for (const row of excelData) {
-                        const payload = {
-                            nim: row["NIM"] || '',
-                            nama_mahasiswa: row["Nama Mahasiswa"] || '',
-                            jurusan: row["Jurusan"] || '',
-                            program_studi: row["Program Studi"] || '',
-                            tempat_lahir: row["Tempat Lahir"] || '',
-                            tanggal_lahir: row["Tanggal Lahir"] || null, 
-                            nomor_surat: row["Nomor Surat SKL"] || '',
-                            tanggal_pembuatan_surat: row["Tanggal Surat"] || new Date().toISOString().slice(0, 10),
-                            judul_tugas_akhir: row["Judul Tugas Akhir"] || '',
-                            tanggal_lulus: row["Tanggal Lulus"] || null,
-                            nin: row["NIN (No Ijasah)"] || '',
-                            nomor_transkrip: row["Nomor Transkrip"] || '',
-                            ipk: row["IPK"] ? parseFloat(row["IPK"]) : 0, 
-                            predikat: row["Predikat"] || ''
-                        };
-
-                        try {
-                            await axios.post(this.apiURL, payload);
-                            successCount++;
-                        } catch (err) {
-                            console.error("Gagal menyimpan data NIM:", row["NIM"], err);
-                            failCount++;
-                        }
+                    try {
+                        const response = await axios.post(this.apiURL, payloadArray);
+                        alert(response.data.message || 'Proses Import Selesai!');
+                        this.loadData(); 
+                    } catch (err) {
+                        const pesanError = err.response?.data?.message || "Gagal menyimpan data bulk.";
+                        alert(pesanError);
+                        console.error("Detail Error Bulk Insert:", err);
                     }
-
-                    alert(`Proses Import Selesai!\nBerhasil tersimpan: ${successCount} data\nGagal: ${failCount} data`);
-                    this.loadData(); 
+                    
                     
                 } catch (error) {
                     alert("Gagal membaca file Excel. Pastikan formatnya benar.");
@@ -220,10 +233,10 @@ createApp({
         }
     }, 
     mounted() {
-        const statusLogin = localStorage.getItem('skl_logged_in');
+        const token = localStorage.getItem('skl_jwt_token');
         
-        if (statusLogin !== 'true') {
-            window.location.href = 'login.html';
+        if (!token) {
+            window.location.href = '/login.html';
         } else {
             this.loadData();
         }
