@@ -5,8 +5,8 @@ const path = require('path');
 const sklRoutes = require('./routes/sklRoutes');
 
 const app = express();
+app.set('trust proxy', true);
 
-// --- KODE YANG DIPERBARUI (CORS) ---
 app.use(cors({
     origin: '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

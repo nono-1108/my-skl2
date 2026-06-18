@@ -11,7 +11,6 @@ axios.interceptors.request.use(config => {
     return config;
 });
 
-// Helper untuk Timezone Lokal
 const getLocalDate = () => {
     const tzoffset = (new Date()).getTimezoneOffset() * 60000;
     return (new Date(Date.now() - tzoffset)).toISOString().slice(0, 10);
@@ -22,7 +21,7 @@ createApp({
         return {
             apiURL: '/api/skl',
             searchQuery: '',
-            filterProdi: '', 
+            filterProdi: '',
             dataList: [],
             form: {
                 id: null,
@@ -43,14 +42,14 @@ createApp({
             }
         }
     },
-    
+
     computed: {
         filteredData() {
             return this.dataList.filter(item => {
                 // 1. Cek apakah teks pencarian cocok dengan NIM atau Nama
-                const cocokPencarian = item.nim.includes(this.searchQuery) || 
-                                       item.nama_mahasiswa.toLowerCase().includes(this.searchQuery.toLowerCase());
-                
+                const cocokPencarian = item.nim.includes(this.searchQuery) ||
+                    item.nama_mahasiswa.toLowerCase().includes(this.searchQuery.toLowerCase());
+
                 // 2. Cek apakah program studi cocok dengan dropdown (jika kosong, tampilkan semua)
                 const cocokProdi = this.filterProdi === '' || item.program_studi === this.filterProdi;
 
@@ -59,7 +58,7 @@ createApp({
             });
         }
     },
-    
+
     methods: {
         async loadData() {
             try {
@@ -77,15 +76,37 @@ createApp({
             try {
                 const dataYangDikirim = { ...this.form };
                 const idData = dataYangDikirim.id;
-                
-                delete dataYangDikirim.id; 
+
+                delete dataYangDikirim.id;
+
+                let savedId = null;
 
                 if (idData) {
                     await axios.put(`${this.apiURL}/${idData}`, dataYangDikirim);
-                    alert("Data berhasil diperbarui!");
+                    savedId = idData;
                 } else {
-                    await axios.post(this.apiURL, dataYangDikirim);
-                    alert("Data berhasil disimpan!");
+                    const response = await axios.post(this.apiURL, dataYangDikirim);
+                    if (response.data && response.data.data && response.data.data.length > 0) {
+                        savedId = response.data.data[0].id;
+                    }
+                }
+
+                const fileInput = this.$refs.transkripInput;
+                if (fileInput && fileInput.files.length > 0 && savedId) {
+                    const formData = new FormData();
+                    formData.append('transkrip', fileInput.files[0]);
+
+                    try {
+                        await axios.post(`${this.apiURL}/upload-transkrip/${savedId}`, formData, {
+                            headers: { 'Content-Type': 'multipart/form-data' }
+                        });
+                        alert(idData ? "Data dan Transkrip berhasil diperbarui!" : "Data dan Transkrip berhasil disimpan!");
+                    } catch (uploadError) {
+                        console.error("Upload error:", uploadError);
+                        alert("Data tersimpan, tapi gagal mengunggah transkrip: " + (uploadError.response?.data?.message || uploadError.message));
+                    }
+                } else {
+                    alert(idData ? "Data berhasil diperbarui!" : "Data berhasil disimpan!");
                 }
 
                 this.clearForm();
@@ -98,11 +119,11 @@ createApp({
         },
 
         editData(item) {
-            this.form = {...item};
+            this.form = { ...item };
         },
-        
+
         async deleteData() {
-            if(confirm('Yakin hapus data ini?')) {
+            if (confirm('Yakin hapus data ini?')) {
                 try {
                     await axios.delete(`${this.apiURL}/${this.form.id}`);
                     alert("Data berhasil dihapus");
@@ -113,11 +134,15 @@ createApp({
                 }
             }
         },
-        
+
         cetakPDF(id) {
             window.open(`${this.apiURL}/cetak/${id}`, '_blank');
         },
-        
+
+        cetakTranskrip(id) {
+            window.open(`${this.apiURL}/cetak-transkrip/${id}`, '_blank');
+        },
+
         clearForm() {
             this.form = {
                 id: null,
@@ -125,11 +150,14 @@ createApp({
                 program_studi: '',
                 tanggal_pembuatan_surat: getLocalDate()
             };
+            if (this.$refs.transkripInput) {
+                this.$refs.transkripInput.value = '';
+            }
         },
-        
+
         resetProdi() {
             this.form.program_studi = '';
-        }, 
+        },
 
         exportExcel() {
             if (this.filteredData.length === 0) {
@@ -157,13 +185,13 @@ createApp({
 
             const worksheet = XLSX.utils.json_to_sheet(dataSiapExport);
             const workbook = XLSX.utils.book_new();
-            
+
             XLSX.utils.book_append_sheet(workbook, worksheet, "Data Lulusan");
             XLSX.writeFile(workbook, "Rekap_Data_SKL_Mahasiswa.xlsx");
         },
 
         triggerFileInput() {
-            this.$refs.fileInput.click(); 
+            this.$refs.fileInput.click();
         },
 
         async processFile(event) {
@@ -181,60 +209,60 @@ createApp({
 
                     if (excelData.length === 0) {
                         alert("File Excel kosong atau format tidak sesuai!");
-                        this.$refs.fileInput.value = ''; 
+                        this.$refs.fileInput.value = '';
                         return;
                     }
 
-                    if(!confirm(`Ditemukan ${excelData.length} baris data. Mulai proses import ke database?`)) {
-                        this.$refs.fileInput.value = ''; 
+                    if (!confirm(`Ditemukan ${excelData.length} baris data. Mulai proses import ke database?`)) {
+                        this.$refs.fileInput.value = '';
                         return;
                     }
 
                     let successCount = 0;
                     let skipCount = 0;
-                    
+
                     const payloadArray = excelData.map(row => ({
                         nim: String(row["NIM"] || ''),
                         nama_mahasiswa: String(row["Nama Mahasiswa"] || ''),
                         jurusan: String(row["Jurusan"] || ''),
                         program_studi: String(row["Program Studi"] || ''),
                         tempat_lahir: String(row["Tempat Lahir"] || ''),
-                        tanggal_lahir: row["Tanggal Lahir"] || null, 
+                        tanggal_lahir: row["Tanggal Lahir"] || null,
                         nomor_surat: String(row["Nomor Surat SKL"] || ''),
                         tanggal_pembuatan_surat: row["Tanggal Surat"] || getLocalDate(),
                         judul_tugas_akhir: String(row["Judul Tugas Akhir"] || ''),
                         tanggal_lulus: row["Tanggal Lulus"] || null,
                         nin: String(row["NIN (No Ijasah)"] || ''),
                         nomor_transkrip: String(row["Nomor Transkrip"] || ''),
-                        ipk: row["IPK"] ? parseFloat(row["IPK"]) : 0, 
+                        ipk: row["IPK"] ? parseFloat(row["IPK"]) : 0,
                         predikat: String(row["Predikat"] || '')
                     }));
 
                     try {
                         const response = await axios.post(this.apiURL, payloadArray);
                         alert(response.data.message || 'Proses Import Selesai!');
-                        this.loadData(); 
+                        this.loadData();
                     } catch (err) {
                         const pesanError = err.response?.data?.message || "Gagal menyimpan data bulk.";
                         alert(pesanError);
                         console.error("Detail Error Bulk Insert:", err);
                     }
-                    
-                    
+
+
                 } catch (error) {
                     alert("Gagal membaca file Excel. Pastikan formatnya benar.");
                     console.error(error);
                 } finally {
-                    this.$refs.fileInput.value = ''; 
+                    this.$refs.fileInput.value = '';
                 }
             };
-            
+
             reader.readAsArrayBuffer(file);
         }
-    }, 
+    },
     mounted() {
         const token = localStorage.getItem('skl_jwt_token');
-        
+
         if (!token) {
             window.location.href = '/login.html';
         } else {

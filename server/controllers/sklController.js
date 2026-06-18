@@ -1,10 +1,9 @@
 const supabase = require('../config/db');
 const puppeteer = require('puppeteer');
-const fs = require('fs');     
-const path = require('path'); 
+const fs = require('fs');
+const path = require('path');
 const jwt = require('../utils/jwt');
-
-// --- CACHE LOGO SAAT STARTUP ---
+const { PDFDocument } = require('pdf-lib');
 let logoBase64 = '';
 let fibaaBase64 = '';
 let bluBase64 = '';
@@ -15,13 +14,13 @@ try {
         const logoData = fs.readFileSync(logoPath);
         logoBase64 = `data:image/png;base64,${logoData.toString('base64')}`;
     }
-    
-    const fibaaPath = path.resolve(__dirname, '../assets/fibaa.png');
+
+    const fibaaPath = path.resolve(__dirname, '../assets/Fibaa.png');
     if (fs.existsSync(fibaaPath)) {
         const fibaaData = fs.readFileSync(fibaaPath);
         fibaaBase64 = `data:image/png;base64,${fibaaData.toString('base64')}`;
     }
-    
+
     const bluPath = path.resolve(__dirname, '../assets/BLU.png');
     if (fs.existsSync(bluPath)) {
         const bluData = fs.readFileSync(bluPath);
@@ -30,15 +29,15 @@ try {
 } catch (err) {
     console.error("Gagal memuat logo:", err);
 }
-// -------------------------------
+
 
 const loginAdmin = async (req, res) => {
     const { username, password } = req.body;
-    
+
     if (username === 'admin' && password === 'admin123') {
         const secret = process.env.JWT_SECRET || 'rahasia_negara_123';
         const token = jwt.sign({ username: 'admin', role: 'admin' }, secret, { expiresIn: '1d' });
-        
+
         return res.status(200).json({
             status: 'success',
             message: 'Login berhasil',
@@ -72,33 +71,29 @@ const createSkl = async (req, res) => {
         const isBulk = Array.isArray(payload);
 
         if (isBulk) {
-            // BULK INSERT
-            // Ambil semua nim dari payload
             const nims = payload.map(item => item.nim).filter(n => n);
-            
-            // Cek NIM yang sudah ada
             const { data: existingData, error: errCheck } = await supabase
                 .from('skl_mahasiswa')
                 .select('nim')
                 .in('nim', nims);
-                
+
             if (errCheck) throw errCheck;
-            
+
             const existingNims = existingData.map(d => d.nim);
-            // Filter data yang belum ada
+
             const newData = payload.filter(item => !existingNims.includes(item.nim));
-            
+
             if (newData.length === 0) {
-                 return res.status(400).json({ status: 'error', message: 'Semua data dalam Excel sudah terdaftar di sistem.' });
+                return res.status(400).json({ status: 'error', message: 'Semua data dalam Excel sudah terdaftar di sistem.' });
             }
-            
+
             const { data, error } = await supabase
                 .from('skl_mahasiswa')
                 .insert(newData)
                 .select();
-                
+
             if (error) throw error;
-            
+
             return res.status(201).json({
                 status: 'success',
                 message: `${newData.length} data berhasil disimpan, ${payload.length - newData.length} dilewati (duplikat).`,
@@ -107,7 +102,7 @@ const createSkl = async (req, res) => {
         } else {
             // SINGLE INSERT
             const { data: cekData, error: errorCek } = await supabase
-                .from('skl_mahasiswa') 
+                .from('skl_mahasiswa')
                 .select('nim')
                 .eq('nim', payload.nim);
 
@@ -140,12 +135,12 @@ const createSkl = async (req, res) => {
 const cetakSkl = async (req, res) => {
     try {
         const { id } = req.params;
-        
+
         const { data, error } = await supabase.from('skl_mahasiswa').select('*').eq('id', id).single();
         if (error || !data) throw error || new Error("Data tidak ditemukan");
-        
+
         const upper = (str) => str ? str.toUpperCase() : '-';
-        
+
         const formatDateUpper = (dateString) => {
             if (!dateString) return '-';
             const date = new Date(dateString);
@@ -153,21 +148,21 @@ const cetakSkl = async (req, res) => {
             return `${date.getDate()} ${bulan[date.getMonth()]} ${date.getFullYear()}`;
         };
 
-        
+
         const formatDateNormal = (dateString) => {
             if (!dateString) return '-';
             const date = new Date(dateString);
-            const bulan = ['Januari','Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']; 
+            const bulan = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
             return `${date.getDate()} ${bulan[date.getMonth()]} ${date.getFullYear()}`;
         };
-        
+
         const formatBesarKecil = (teks) => {
             if (!teks) return '-';
-            return teks.toLowerCase().split(' ').map(kata => 
+            return teks.toLowerCase().split(' ').map(kata =>
                 kata.charAt(0).toUpperCase() + kata.substring(1)
             ).join(' ');
         };
-       
+
         const htmlContent = `
         <!DOCTYPE html>
         <html lang="id">
@@ -195,12 +190,13 @@ const cetakSkl = async (req, res) => {
             .header p { margin: 0; }
                 
             /* TABEL DATA */
-            .content table { 
-            width: 100%; 
-            border-collapse: collapse; 
-            margin: 15px 0; }
-            table-layout: fixed;
-            .content table td { padding: 3px 0; vertical-align: top; }
+            table.content { 
+                width: 100%; 
+                border-collapse: collapse; 
+                margin: 15px 0; 
+                table-layout: fixed;
+            }
+            table.content td { padding: 3px 0; vertical-align: top; }
             .col-1 { width: 30%; }
             .col-2 { width: 3%; text-align: left; }
             .col-3 { width: 66%; text-align: justify;}
@@ -276,7 +272,7 @@ const cetakSkl = async (req, res) => {
     
     <tr><td>No. Ijasah Nasional</td><td>:</td><td>${data.nin || '-'}</td></tr>
     <tr><td>No. Transkrip Nilai</td><td>:</td><td>${data.nomor_transkrip || '-'}</td></tr>
-    <tr><td>IPK</td><td>:</td><td>${data.ipk || '-'}</td></tr>
+    <tr><td>IPK</td><td>:</td><td>${parseFloat(data.ipk).toFixed(2)}</td></tr>
     
     <tr><td>Predikat Kelulusan</td><td>:</td><td>${formatBesarKecil(data.predikat)}</td></tr>
 </table>
@@ -309,16 +305,16 @@ const cetakSkl = async (req, res) => {
 
         const browser = await puppeteer.launch({ headless: "new" });
         const page = await browser.newPage();
-        
+
         await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-        
-        const pdfBuffer = await page.pdf({ 
+
+        const pdfBuffer = await page.pdf({
             format: 'A4',
             printBackground: true,
-            margin: { top: '1cm', right: '2.2cm', bottom: '0cm', left: '2.2cm' } 
+            margin: { top: '1cm', right: '2.2cm', bottom: '0cm', left: '2.2cm' }
         });
-        
-            await browser.close();
+
+        await browser.close();
 
         res.setHeader('Content-Disposition', `inline; filename="SKL_${data.nim}.pdf"`);
         res.setHeader('Content-Type', 'application/pdf');
@@ -333,7 +329,7 @@ const cetakSkl = async (req, res) => {
 const deleteSkl = async (req, res) => {
     try {
         const { id } = req.params;
-        
+
         const { data, error } = await supabase
             .from('skl_mahasiswa')
             .delete()
@@ -341,7 +337,7 @@ const deleteSkl = async (req, res) => {
             .select();
 
         if (error) throw error;
-        
+
         if (data.length === 0) {
             return res.status(404).json({ status: 'error', message: 'Data tidak ditemukan' });
         }
@@ -386,4 +382,122 @@ const updateSkl = async (req, res) => {
     }
 };
 
-module.exports = { getAllSkl, createSkl, cetakSkl, deleteSkl, updateSkl, loginAdmin };
+const uploadTranskrip = async (req, res) => {
+    try {
+        const { id } = req.params;
+        if (!req.file) {
+            return res.status(400).json({ status: 'error', message: 'Tidak ada file transkrip yang diunggah' });
+        }
+
+        const fileName = `transkrip_${id}.pdf`;
+
+        // Upload ke Supabase Storage bucket 'transkrip'
+        const { data, error } = await supabase.storage
+            .from('transkrip')
+            .upload(fileName, req.file.buffer, {
+                contentType: 'application/pdf',
+                upsert: true
+            });
+
+        if (error) {
+            console.error("Supabase Storage Error:", error);
+            // Kemungkinan bucket belum ada
+            if (error.message.includes('bucket not found')) {
+                throw new Error("Bucket 'transkrip' tidak ditemukan di Supabase Storage. Harap buat bucket tersebut terlebih dahulu.");
+            }
+            throw error;
+        }
+
+        res.status(200).json({ status: 'success', message: 'Transkrip berhasil diunggah' });
+    } catch (error) {
+        console.error("Error upload transkrip:", error);
+        res.status(500).json({ status: 'error', message: error.message });
+    }
+};
+
+const cetakTranskrip = async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        // 1. Ambil data mahasiswa untuk nama file
+        const { data: mhs, error: errMhs } = await supabase.from('skl_mahasiswa').select('nim').eq('id', id).single();
+        if (errMhs || !mhs) throw new Error("Data mahasiswa tidak ditemukan");
+
+        // 2. Download file transkrip dari Supabase Storage
+        const fileName = `transkrip_${id}.pdf`;
+        const { data: fileData, error: errFile } = await supabase.storage.from('transkrip').download(fileName);
+        if (errFile || !fileData) {
+            throw new Error("File transkrip tidak ditemukan. Pastikan transkrip sudah diunggah untuk mahasiswa ini.");
+        }
+
+        const transkripBuffer = await fileData.arrayBuffer();
+
+        // 3. Baca Kop Surat template dari assets
+        const kopSuratPath = path.resolve(__dirname, '../assets/kop surat SKL.pdf');
+        if (!fs.existsSync(kopSuratPath)) {
+            throw new Error("File template Kop Surat tidak ditemukan di server.");
+        }
+        const kopSuratBuffer = fs.readFileSync(kopSuratPath);
+
+        // 4. Proses penggabungan menggunakan pdf-lib
+        const transkripPdf = await PDFDocument.load(transkripBuffer);
+        const kopSuratPdf = await PDFDocument.load(kopSuratBuffer);
+
+        const mergedPdf = await PDFDocument.create();
+
+        // Ambil halaman pertama dari kop surat sebagai background
+        const embeddedKopSurat = await mergedPdf.embedPage(kopSuratPdf.getPages()[0]);
+
+        const transkripPageIndices = transkripPdf.getPageIndices();
+        for (const idx of transkripPageIndices) {
+            const transkripPage = transkripPdf.getPages()[idx];
+            const embeddedTranskrip = await mergedPdf.embedPage(transkripPage);
+            
+            // Buat halaman baru dengan ukuran sesuai Kop Surat
+            const newPage = mergedPdf.addPage([embeddedKopSurat.width, embeddedKopSurat.height]);
+            
+            // Draw Kop Surat sebagai background
+            newPage.drawPage(embeddedKopSurat, {
+                x: 0,
+                y: 0,
+                width: embeddedKopSurat.width,
+                height: embeddedKopSurat.height,
+            });
+            
+            // Perbesar skala dengan berpatokan pada lebar (scaleX). 
+            // Kita kalikan 1.0 (lebar penuh) agar teksnya lebih besar dari sebelumnya.
+            const scale = (embeddedKopSurat.width / embeddedTranskrip.width) * 1.0;
+            
+            const scaledWidth = embeddedTranskrip.width * scale;
+            const scaledHeight = embeddedTranskrip.height * scale;
+            
+            // Posisikan di tengah secara horizontal
+            const xPos = (embeddedKopSurat.width - scaledWidth) / 2;
+            
+            // Geser ke bawah agar tidak menabrak Kop Surat (semakin besar angka offsetTop, semakin turun)
+            // Diubah menjadi 10 agar lebih naik mendekati garis Kop Surat
+            const offsetTop = 10; 
+            const yPos = embeddedKopSurat.height - scaledHeight - offsetTop;
+
+            // Draw Transkrip di atasnya
+            newPage.drawPage(embeddedTranskrip, {
+                x: xPos,
+                y: yPos,
+                width: scaledWidth,
+                height: scaledHeight,
+            });
+        }
+
+        const mergedPdfBytes = await mergedPdf.save();
+
+        res.setHeader('Content-Disposition', `inline; filename="Transkrip_Kop_${mhs.nim}.pdf"`);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.send(Buffer.from(mergedPdfBytes));
+
+    } catch (error) {
+        console.error("Error cetak transkrip:", error);
+        res.status(500).json({ status: 'error', message: error.message });
+    }
+};
+
+module.exports = { getAllSkl, createSkl, cetakSkl, deleteSkl, updateSkl, loginAdmin, uploadTranskrip, cetakTranskrip };
